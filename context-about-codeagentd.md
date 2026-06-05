@@ -2468,3 +2468,78 @@ async fn handle_chat_queue(
 对于局域网内团队协作、或者个人在固定代码仓库上的 IDE 深度重构来说，这绝对是可靠性最高、响应速度最快（因为缓存常驻）、且最不容易写出 Bug 的闭环方案。
 我们现在已经把全盘的宏观设计、技术选型（Rig + async_openai + JSON-RPC + Tokio Mutex）、避坑指南全部拉通了。您对这个精简版排队后端的落地代码还有什么疑问，或者下一步您打算直接在本地建库跑起来了吗？
 
+
+# 安装 mcp-server-tree-sitter 和 mcp-cpp
+在建立你的 Rust 代碼解析 Agent 時，這兩個 MCP 伺服器的安裝與執行非常方便。因為你使用的是 Rig 框架的 StdioTransport，你完全不需要把它們提前配置或安裝到系統的全局環境中。
+最工業級、最乾淨的做法是直接在 Rust 程式碼中利用 uvx（由 Python 超快包管理器 uv 提供）在執行時動態拉起、隨用隨裝。 [1, 2] 
+以下為你整理這兩個伺服器的安裝要求、環境依賴與拉起指令：
+------------------------------
+## 🌲 1. mcp-server-tree-sitter (代碼結構分析)
+這款伺服器由開源社群（Wrale）開發，本質上是一個 Python 專案。它不需要任何編譯工具鏈，只需要你的電腦上有 Python 3.10+ 環境即可。 [2, 3, 4] 
+## ⚙️ 系統依賴：
+
+   1. 安裝 uv（業界目前最快的包管理器，用於免安裝拉起 MCP）：
+   * Windows (PowerShell):
+      
+      powershell -ExecutionPolicy ByPass -c "irm https://astral.sh | iex"
+      
+      * Ubuntu / Linux / macOS:
+      
+      curl -LsSf https://astral.sh | sh
+      
+      [2] 
+   
+## 🚀 在 Rust 代碼中如何直接拉起：
+在你的 Rust 專案中，有了 uv 後，直接使用 Rig 如下指令，它會自動完成臨時下載、解壓與 Stdio 管道通訊，一行搞定： [2, 5] 
+
+// Rust 內直接免安裝拉起let ts_transport = StdioTransport::new("uvx", &["mcp-server-tree-sitter"]);
+
+------------------------------
+## 🛠️ 2. mcp-cpp (clangd-LSP 語義交叉導航)
+這款伺服器（由 mpsm/mcp-cpp 組織開源）是用 Rust 寫成的，並透過 C++ 官方編譯器基礎設施 clangd 來提供神經網路級的語義導航。 [6, 7] 
+## ⚙️ 系統依賴：
+
+   1. 系統必須安裝 clangd（LSP 核心，版本建議 11 或更新）：
+   * Windows：可以使用 winget install LLVM.LLVM，或者在安裝 VS Code 的 C++ 擴充功能時讓它自動下載 clangd。
+      * Ubuntu / Debian Linux：
+      
+      sudo apt update && sudo apt install clangd
+      
+      * macOS：
+      
+      brew install llvm
+      
+      [7] 
+   2. 生成 compile_commands.json：
+   * 正如之前討論的，請確保你的 Makefile C/C++ 專案根目錄下有這個文件（可透過在編譯伺服器運行 bear -- make 獲得）。
+   
+## 🚀 在 Rust 代碼中如何直接拉起：
+由於 mcp-cpp 同時也發佈在 Python/uvx 生態中，你依然可以在 Rust 裡使用 uvx 實現跨平台零配置拉起： [2] 
+
+// Rust 內直接拉起，並注入路徑映射參數let cpp_transport = StdioTransport::new(
+    "uvx", 
+    &[
+        "mcp-cpp", 
+        "--workspace", "/local/project/path",
+        "--path-mappings=/remote/build/path=/local/project/path"
+    ]
+);
+
+## 📦 備用安裝方案（手動編譯常駐二進位執行檔）：
+如果你不想依賴 uvx 來拉起 mcp-cpp，也可以直接利用 cargo 將其源碼編譯並安裝到你的電腦中： [7] 
+
+# 從 crates.io 官方庫直接編譯安裝
+cargo install mcp-cpp-server
+
+安裝成功后，該二進位檔會常駐在你的 ~/.cargo/bin/mcp-cpp-server 內。此時你在 Rust 的 Rig 代碼中，就可以將拉起指令直接改為本地路徑： [7] 
+
+// 手動安裝後的拉起寫法let cpp_transport = StdioTransport::new("mcp-cpp-server", &["--workspace", "/local/path"]);
+
+------------------------------
+## 💡 總結：最省心的開發準備流水線
+今晚要讓你的 Rig 單項目併發排隊 Agent 運作起來，你只需要在你的開發電腦上敲下這兩步：
+
+   1. 第一步：在系統終端安裝好 uv（Linux/Mac 用 curl，Windows 用 irm）。
+   2. 第二步：確保你的電腦能調用 clangd 指令（終端輸入 clangd --version 能出版本號即可）。 [2, 7] 
+
+只要這兩項就緒，直接執行你的 Rust 代碼，uvx 就會在後台幫你打理好 mcp-server-tree-sitter 和 mcp-cpp 的一切動態下載與管道連接，你的 Agent 後端就能立刻閉環發動了！
