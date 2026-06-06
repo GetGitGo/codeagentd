@@ -13,6 +13,9 @@ pub struct HealthResponse {
     pub compile_db_dir: Option<String>,
     pub compile_db_entries: Option<usize>,
     pub main_sources: Option<Vec<String>>,
+    pub tree_sitter_project: Option<String>,
+    pub tree_sitter_registry_root: Option<String>,
+    pub tree_sitter_main_paths: Option<Vec<String>>,
     pub mcp_ready: bool,
     pub tool_count: usize,
     pub model: String,
@@ -33,6 +36,15 @@ pub async fn health(State(state): State<Arc<AppState>>) -> Json<HealthResponse> 
                 .map(|p| p.display().to_string())
                 .collect()
         }),
+        tree_sitter_project: state.ts_context.as_ref().map(|t| t.project_name.clone()),
+        tree_sitter_registry_root: state
+            .ts_context
+            .as_ref()
+            .map(|t| t.registry_root.display().to_string()),
+        tree_sitter_main_paths: state
+            .ts_context
+            .as_ref()
+            .map(|t| t.main_entry_paths.clone()),
         mcp_ready: state.tool_count > 0,
         tool_count: state.tool_count,
         model: state.config.deepseek_model.clone(),

@@ -152,6 +152,24 @@ pub fn restart(config: &Path) -> Result<(), DaemonError> {
     start(config)
 }
 
+/// Detached `codeagentd restart` for HTTP handlers (outlives the current process).
+pub fn spawn_restart(config: &Path) -> Result<(), DaemonError> {
+    let exe = std::env::current_exe().map_err(|e| DaemonError::Start(e.to_string()))?;
+    let config_abs = fs::canonicalize(config).unwrap_or_else(|_| config.to_path_buf());
+    Command::new(exe)
+        .args([
+            "restart",
+            "--config",
+            &config_abs.to_string_lossy(),
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| DaemonError::Start(e.to_string()))?;
+    Ok(())
+}
+
 fn read_pid_if_alive(pid_file: &Path) -> Result<Option<u32>, DaemonError> {
     if !pid_file.is_file() {
         return Ok(None);

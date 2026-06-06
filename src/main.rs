@@ -1,14 +1,17 @@
 mod agent;
 mod api;
 mod cli;
+mod local_peer;
 mod compile_db;
 mod config;
 mod daemon;
 mod mcp;
 mod process_util;
 mod state;
+mod tree_sitter;
 mod workspace;
 
+use std::net::SocketAddr;
 use std::path::Path;
 
 use tracing_subscriber::EnvFilter;
@@ -56,13 +59,13 @@ async fn run_server(config_path: &Path) -> Result<(), Box<dyn std::error::Error>
     );
 
     let work_dir = config.work_dir.clone();
-    let result = run_server_inner(&config).await;
+    let result = run_server_inner(config_path, &config).await;
     remove_pid_file(&ws);
     ws.cleanup_runtime_artifacts(&work_dir);
     result
 }
 
-async fn run_server_inner(config: &Config) -> Result<(), Box<dyn std::error::Error>> {
+async fn run_server_inner(config_path: &Path, config: &Config) -> Result<(), Box<dyn std::error::Error>> {
     process_util::become_session_leader();
 
     let compile_db = prepare(
@@ -77,9 +80,10 @@ async fn run_server_inner(config: &Config) -> Result<(), Box<dyn std::error::Err
         "compile_commands ready for mcp-cpp"
     );
 
-    let mcp = init_mcp(&config.source_root, true).await?;
+    let mcp = init_mcp(&config.source_root, true, Some(&compile_db)).await?;
     mcp.warmup(&compile_db).await;
     let tool_count = mcp.tool_count;
+    let ts_context = mcp.ts_context.clone();
     let mcp_cell = mcp_holder(mcp);
     let tool_server = {
         let guard = mcp_cell.lock().await;
@@ -90,8 +94,15 @@ async fn run_server_inner(config: &Config) -> Result<(), Box<dyn std::error::Err
             .clone()
     };
 
-    let agent = build_agent(config, Some(&compile_db), tool_server)?;
-    let state = AppState::new(config.clone(), Some(compile_db), tool_count, agent);
+    let agent = build_agent(config, Some(&compile_db), Some(&ts_context), tool_server)?;
+    let state = AppState::new(
+        config_path.to_path_buf(),
+        config.clone(),
+        Some(compile_db),
+        Some(ts_context),
+        tool_count,
+        agent,
+    );
 
     let app = router(state);
     let listener = tokio::net::TcpListener::bind(config.listen_addr).await?;
@@ -103,7 +114,10 @@ async fn run_server_inner(config: &Config) -> Result<(), Box<dyn std::error::Err
     );
 
     let mcp_for_signal = mcp_cell.clone();
-    let serve_result = axum::serve(listener, app)
+    let serve_result = axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
         .with_graceful_shutdown(async move {
             shutdown_signal().await;
             shutdown_holder(&mcp_for_signal).await;

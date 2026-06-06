@@ -6,12 +6,14 @@ use rig_core::tool::server::ToolServerHandle;
 use crate::agent::preamble::build_preamble;
 use crate::compile_db::CompileDbContext;
 use crate::config::Config;
+use crate::tree_sitter::TreeSitterContext;
 
 pub type CodeAgent = Agent<openai::CompletionModel>;
 
 pub fn build_agent(
     config: &Config,
     compile_db: Option<&CompileDbContext>,
+    ts_context: Option<&TreeSitterContext>,
     tool_server: ToolServerHandle,
 ) -> Result<CodeAgent, ProviderClientError> {
     let client = openai::Client::builder()
@@ -20,7 +22,7 @@ pub fn build_agent(
         .build()?
         .completions_api();
 
-    let preamble = build_preamble(&config.source_root, compile_db);
+    let preamble = build_preamble(&config.source_root, compile_db, ts_context);
 
     let agent = client
         .agent(&config.deepseek_model)

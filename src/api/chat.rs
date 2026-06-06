@@ -41,12 +41,9 @@ pub async fn handle_chat(
                     yield Ok(Event::default().data(text));
                 }
                 Ok(MultiTurnStreamItem::StreamAssistantItem(
-                    StreamedAssistantContent::Reasoning(reasoning),
+                    StreamedAssistantContent::Reasoning(_),
                 )) => {
-                    let text = reasoning.display_text();
-                    if !text.is_empty() {
-                        yield Ok(Event::default().data(text));
-                    }
+                    // Reasoning models (e.g. deepseek-reasoner): keep internal; do not mix into client MD.
                 }
                 Ok(MultiTurnStreamItem::FinalResponse(_)) => {}
                 Err(err) => {

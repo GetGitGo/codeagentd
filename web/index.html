@@ -153,104 +153,22 @@
       word-break: break-word;
     }
     .msg-assistant {
-      font-size: 0.92rem;
-      line-height: 1.65;
-      word-break: break-word;
-      padding: 0 0.15rem;
-    }
-    .msg-assistant.streaming {
+      font-family: "SF Mono", "Fira Code", ui-monospace, monospace;
+      font-size: 0.82rem;
+      line-height: 1.5;
       white-space: pre-wrap;
-      color: var(--muted);
-      font-family: inherit;
+      word-break: break-word;
+      tab-size: 4;
+      padding: 0 0.1rem;
     }
+    .msg-assistant.streaming { color: var(--muted); }
     .msg-assistant.streaming::after {
       content: "▍";
       color: var(--accent);
       animation: blink 1s step-end infinite;
     }
     @keyframes blink { 50% { opacity: 0; } }
-    .msg-assistant > :first-child { margin-top: 0; }
-    .msg-assistant > :last-child { margin-bottom: 0; }
-    .msg-assistant p { margin: 0.65em 0; }
-    .msg-assistant h1, .msg-assistant h2, .msg-assistant h3, .msg-assistant h4 {
-      margin: 1.1em 0 0.45em;
-      font-weight: 600;
-      line-height: 1.35;
-    }
-    .msg-assistant h1 { font-size: 1.15rem; }
-    .msg-assistant h2 { font-size: 1.05rem; }
-    .msg-assistant h3, .msg-assistant h4 { font-size: 0.98rem; }
-    .msg-assistant ul, .msg-assistant ol {
-      margin: 0.5em 0;
-      padding-left: 1.4em;
-    }
-    .msg-assistant li { margin: 0.3em 0; }
-    .msg-assistant li > p { margin: 0.2em 0; }
-    .msg-assistant code {
-      font-family: "SF Mono", "Fira Code", ui-monospace, monospace;
-      font-size: 0.86em;
-      background: var(--user-bg);
-      padding: 0.12em 0.35em;
-      border-radius: 4px;
-    }
-    .msg-assistant pre {
-      background: var(--user-bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 0.75rem 0.85rem;
-      overflow-x: auto;
-      margin: 0.75em 0;
-      white-space: pre;
-      word-break: normal;
-      tab-size: 4;
-    }
-    .msg-assistant pre code {
-      display: block;
-      background: none;
-      padding: 0;
-      font-size: 0.8rem;
-      line-height: 1.45;
-      white-space: pre;
-      word-break: normal;
-      overflow-x: auto;
-    }
-    .msg-assistant hr {
-      border: none;
-      border-top: 1px solid var(--border);
-      margin: 1em 0;
-    }
-    .msg-assistant blockquote {
-      margin: 0.65em 0;
-      padding-left: 0.85em;
-      border-left: 3px solid var(--border);
-      color: var(--muted);
-    }
-    .msg-assistant strong { font-weight: 600; }
-    .msg-assistant .table-wrap {
-      overflow-x: auto;
-      margin: 0.75em 0;
-      max-width: 100%;
-    }
-    .msg-assistant table {
-      border-collapse: collapse;
-      width: 100%;
-      font-size: 0.88rem;
-    }
-    .msg-assistant th, .msg-assistant td {
-      border: 1px solid var(--border);
-      padding: 0.45rem 0.65rem;
-      text-align: left;
-      vertical-align: top;
-    }
-    .msg-assistant th {
-      background: var(--user-bg);
-      font-weight: 600;
-    }
-    .msg-assistant pre code.hljs {
-      background: none;
-      padding: 0;
-    }
-    .error { color: var(--err); }
+    .msg-assistant.error { color: var(--err); font-family: inherit; }
     .composer-wrap {
       flex-shrink: 0;
       border-top: 1px solid var(--border);
@@ -276,9 +194,12 @@
     .composer-actions {
       flex-shrink: 0;
       display: flex;
+      flex-direction: row;
+      align-items: flex-end;
       gap: 0.4rem;
       padding-bottom: 0.15rem;
     }
+    .composer-actions button { white-space: nowrap; }
     @media (max-width: 720px) {
       .sidebar {
         position: fixed;
@@ -315,6 +236,7 @@
         </div>
         <div class="field">
           <button type="button" id="healthBtn">健康检查</button>
+          <button type="button" id="restartBtn" hidden style="margin-top: 0.4rem">重启服务</button>
           <div id="healthInfo"></div>
         </div>
       </div>
@@ -331,6 +253,7 @@
         <div class="composer">
           <textarea id="question" rows="2" placeholder="例如：encoder.cpp 主要做什么？"></textarea>
           <div class="composer-actions">
+            <button type="button" id="copyBtn" disabled>Copy</button>
             <button type="button" id="stopBtn" disabled>停止</button>
             <button type="button" id="clearBtn">清空</button>
           </div>
@@ -339,31 +262,15 @@
     </div>
   </div>
 
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css" />
-  <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
   <script>
-    const mdRenderer = new marked.Renderer();
-    mdRenderer.code = ({ text, lang }) => {
-      const language = (lang || "").trim();
-      if (language && hljs.getLanguage(language)) {
-        const highlighted = hljs.highlight(text, { language }).value;
-        return `<pre><code class="hljs language-${escapeHtml(language)}">${highlighted}</code></pre>`;
-      }
-      const highlighted = hljs.highlightAuto(text).value;
-      return `<pre><code class="hljs">${highlighted}</code></pre>`;
-    };
-    mdRenderer.table = (header, body) =>
-      `<div class="table-wrap"><table><thead>${header}</thead><tbody>${body}</tbody></table></div>`;
-    marked.setOptions({ gfm: true, breaks: false, renderer: mdRenderer });
-
     const $ = (id) => document.getElementById(id);
     const questionInput = $("question");
+    const copyBtn = $("copyBtn");
     const stopBtn = $("stopBtn");
     const clearBtn = $("clearBtn");
     const remoteHostInput = $("remoteHost");
     const healthBtn = $("healthBtn");
+    const restartBtn = $("restartBtn");
     const healthInfo = $("healthInfo");
     const output = $("output");
     const sidebar = $("sidebar");
@@ -409,6 +316,23 @@
       return `http://${remote}:${DEFAULT_PORT}`;
     }
 
+    function targetHostname() {
+      const remote = remoteHostInput.value.trim();
+      if (!remote) return new URL(localDefault()).hostname;
+      if (/^https?:\/\//i.test(remote)) return new URL(remote).hostname;
+      const host = remote.includes(":") ? remote.slice(0, remote.lastIndexOf(":")) : remote;
+      return host.replace(/^\[|\]$/g, "");
+    }
+
+    function isLoopbackHost(hostname) {
+      const h = (hostname || "").toLowerCase().replace(/^\[|\]$/g, "");
+      return h === "localhost" || h === "::1" || h === "0:0:0:0:0:0:0:1" || /^127\./.test(h);
+    }
+
+    function updateRestartBtnVisibility() {
+      restartBtn.hidden = !isLoopbackHost(targetHostname());
+    }
+
     function formatHealth(data) {
       return [
         `endpoint: ${base()}`,
@@ -423,6 +347,41 @@
 
     function scrollChat() {
       output.scrollTop = output.scrollHeight;
+    }
+
+    async function waitForHealth(timeoutMs) {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        try {
+          const res = await fetch(`${base()}/health`);
+          if (res.ok) return;
+        } catch (_) { /* service down while restarting */ }
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+      throw new Error("等待服务恢复超时");
+    }
+
+    async function restartServer() {
+      if (!confirm("重启 codeagentd？进行中的对话将中断。")) return;
+      restartBtn.disabled = true;
+      healthBtn.disabled = true;
+      healthInfo.className = "";
+      healthInfo.textContent = "正在重启…";
+      try {
+        const res = await fetch(`${base()}/api/restart`, { method: "POST" });
+        if (!res.ok) {
+          const body = await res.text().catch(() => "");
+          throw new Error(body || `HTTP ${res.status}`);
+        }
+        await waitForHealth(90000);
+        await checkHealth();
+      } catch (e) {
+        healthInfo.className = "err";
+        healthInfo.textContent = `重启失败: ${e.message || e}`;
+      } finally {
+        restartBtn.disabled = false;
+        healthBtn.disabled = false;
+      }
     }
 
     async function checkHealth() {
@@ -443,17 +402,20 @@
       }
     }
 
+    /** SSE: axum 会把 payload 里的 \\n 拆成多行 data:，须用 \\n 拼回（见 axum Event::data） */
     function parseSseChunk(buffer) {
       const events = [];
       const parts = buffer.split("\n\n");
       const rest = parts.pop() ?? "";
       for (const part of parts) {
         if (!part.trim()) continue;
-        let data = "";
+        const dataLines = [];
         for (const line of part.split("\n")) {
-          if (line.startsWith("data:")) data += line.slice(5).replace(/^\s/, "");
+          if (line.startsWith("data:")) {
+            dataLines.push(line.slice(5).replace(/^\s/, ""));
+          }
         }
-        if (data) events.push(data);
+        if (dataLines.length > 0) events.push(dataLines.join("\n"));
       }
       return { events, rest };
     }
@@ -486,95 +448,42 @@
       }
     }
 
-    function escapeHtml(s) {
-      return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    }
-
-    function isTableRow(line) {
-      const t = line.trim();
-      return t.startsWith("|") && t.includes("|", 1);
-    }
-
-    function isTableSeparator(line) {
-      return /^\|[-:\s|]+\|$/.test(line.trim());
-    }
-
-    /** Collapse blank lines inside GFM tables; ensure blank line before table block. */
-    function normalizeTables(text) {
-      const lines = text.split("\n");
-      const out = [];
-      let i = 0;
-      while (i < lines.length) {
-        if (!isTableRow(lines[i])) {
-          out.push(lines[i]);
-          i++;
-          continue;
-        }
-        if (out.length > 0 && out[out.length - 1].trim() !== "") {
-          out.push("");
-        }
-        const block = [];
-        while (i < lines.length) {
-          const line = lines[i];
-          if (isTableRow(line)) {
-            block.push(line.trim());
-            i++;
-          } else if (line.trim() === "" && i + 1 < lines.length && isTableRow(lines[i + 1])) {
-            i++;
-          } else {
-            break;
-          }
-        }
-        if (block.length > 0 && isTableSeparator(block[0]) && block.length > 1) {
-          const cols = Math.max(1, (block[0].match(/\|/g) || []).length - 1);
-          const header = "| " + Array(cols).fill("—").join(" | ") + " |";
-          block.unshift(header);
-        }
-        out.push(...block);
-        if (i < lines.length && lines[i].trim() !== "") {
-          out.push("");
-        }
-      }
-      return out.join("\n");
-    }
-
-    function normalizeOutsideFences(text) {
-      const fences = [];
-      let out = text.replace(/```[\s\S]*?```/g, (block) => {
-        fences.push(block);
-        return `\x00FENCE${fences.length - 1}\x00`;
-      });
-      out = out
-        .replace(/([^\n])(#{1,6}\s)/g, "$1\n\n$2")
-        .replace(/([^\n])(\d+\.\s+\*\*)/g, "$1\n\n$2");
-      out = normalizeTables(out);
-      return out.replace(/\x00FENCE(\d+)\x00/g, (_, i) => fences[+i]);
-    }
-
-    function prepareMarkdown(text) {
-      let src = text;
-      const tickCount = (src.match(/```/g) || []).length;
-      if (tickCount % 2 === 1) src += "\n```";
-      return normalizeOutsideFences(src);
-    }
-
-    /** 流式阶段：纯文本，避免不完整 MD 被反复解析 */
-    function showStreaming(el, text) {
-      el.className = "msg-assistant streaming";
+    function showReply(el, text, streaming) {
+      el.className = streaming ? "msg-assistant streaming" : "msg-assistant";
       el.textContent = text;
-    }
-
-    /** 完成后一次性 Markdown 渲染（marked + highlight.js + DOMPurify） */
-    function renderMarkdown(el, text) {
-      el.className = "msg-assistant";
-      const html = marked.parse(prepareMarkdown(text));
-      el.innerHTML = DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
     }
 
     function setBusy(on) {
       busy = on;
       questionInput.disabled = on;
       stopBtn.disabled = !on;
+    }
+
+    function updateCopyBtn() {
+      copyBtn.disabled = output.querySelectorAll(".turn").length === 0;
+    }
+
+    function lastTurnText() {
+      const turns = output.querySelectorAll(".turn");
+      if (turns.length === 0) return null;
+      const turn = turns[turns.length - 1];
+      const q = turn.querySelector(".msg-user")?.textContent ?? "";
+      const a = turn.querySelector(".msg-assistant")?.textContent ?? "";
+      return `【问题】\n${q}\n\n【回答】\n${a}`;
+    }
+
+    async function copyLastTurn() {
+      const text = lastTurnText();
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        const label = copyBtn.textContent;
+        copyBtn.textContent = "已复制";
+        setTimeout(() => { copyBtn.textContent = label; }, 1200);
+      } catch (e) {
+        copyBtn.textContent = "失败";
+        setTimeout(() => { copyBtn.textContent = "Copy"; }, 1200);
+      }
     }
 
     async function send() {
@@ -593,6 +502,7 @@
       turn.appendChild(userEl);
       turn.appendChild(replyEl);
       output.appendChild(turn);
+      updateCopyBtn();
 
       questionInput.value = "";
       questionInput.style.height = "auto";
@@ -607,19 +517,19 @@
           question,
           (chunk) => {
             text += chunk;
-            showStreaming(replyEl, text);
+            showReply(replyEl, text, true);
             scrollChat();
           },
           abortController.signal
         );
-        renderMarkdown(replyEl, text);
+        showReply(replyEl, text, false);
         scrollChat();
       } catch (e) {
         if (e.name === "AbortError") {
-          const stopped = text + (text ? "\n\n" : "") + "*[已停止]*";
-          renderMarkdown(replyEl, stopped);
+          showReply(replyEl, text + (text ? "\n\n" : "") + "[已停止]", false);
         } else {
-          replyEl.innerHTML = `<span class="error">错误: ${escapeHtml(String(e.message || e))}</span>`;
+          replyEl.className = "msg-assistant error";
+          replyEl.textContent = `错误: ${e.message || e}`;
         }
       } finally {
         setBusy(false);
@@ -629,9 +539,14 @@
     }
 
     healthBtn.addEventListener("click", checkHealth);
+    restartBtn.addEventListener("click", restartServer);
+    remoteHostInput.addEventListener("input", updateRestartBtnVisibility);
+    updateRestartBtnVisibility();
+    copyBtn.addEventListener("click", () => copyLastTurn());
     stopBtn.addEventListener("click", () => abortController?.abort());
     clearBtn.addEventListener("click", () => {
       output.innerHTML = '';
+      updateCopyBtn();
     });
     questionInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {

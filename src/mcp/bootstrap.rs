@@ -12,6 +12,7 @@ use serde_json::json;
 use thiserror::Error;
 
 use crate::compile_db::CompileDbContext;
+use crate::tree_sitter::{project_name_from_path, TreeSitterContext};
 
 #[derive(Debug, Error)]
 pub enum McpBootstrapError {
@@ -35,6 +36,7 @@ const AGENT_HIDDEN_WHEN_COMPILE_DB: &[&str] = &["get_project_details"];
 pub struct McpRuntime {
     pub tool_server: ToolServerHandle,
     pub tool_count: usize,
+    pub ts_context: TreeSitterContext,
     ts_service: RunningService<rmcp::service::RoleClient, McpClientHandler>,
     cpp_service: RunningService<rmcp::service::RoleClient, McpClientHandler>,
 }
@@ -55,21 +57,55 @@ pub async fn shutdown_holder(holder: &McpHolder) {
 impl McpRuntime {
     /// Verify MCP tools against a known source file (does not block HTTP listen).
     pub async fn warmup(&self, compile_db: &CompileDbContext) {
-        let probe = compile_db
+        let abs_probe = compile_db
             .main_sources
             .first()
             .or_else(|| compile_db.source_files.first());
-        let Some(path) = probe else {
+        let Some(abs_path) = abs_probe else {
             tracing::warn!("warmup skipped: no source files in compile_commands");
             return;
         };
-        let path_str = path.display().to_string();
+        let abs_path_str = abs_path.display().to_string();
         let build_dir = compile_db.compile_db_dir.display().to_string();
-
-        let ts_args = json!({ "file_path": path_str })
-            .as_object()
+        let ts = &self.ts_context;
+        let ts_rel = ts
+            .main_entry_paths
+            .first()
             .cloned()
-            .unwrap_or_default();
+            .unwrap_or_else(|| abs_path_str.clone());
+
+        let get_file_args = json!({
+            "project": ts.project_name,
+            "path": ts_rel,
+            "max_lines": 5
+        })
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+        match self
+            .ts_service
+            .peer()
+            .call_tool(CallToolRequestParams::new("get_file").with_arguments(get_file_args))
+            .await
+        {
+            Ok(r) if r.is_error != Some(true) => {
+                tracing::info!(file = %ts_rel, "warmup: tree-sitter get_file ok");
+            }
+            Ok(r) => tracing::warn!(
+                file = %ts_rel,
+                error = %format_tool_result(&r),
+                "warmup: tree-sitter get_file failed"
+            ),
+            Err(e) => tracing::warn!(file = %ts_rel, error = %e, "warmup: tree-sitter get_file call failed"),
+        }
+
+        let ts_args = json!({
+            "project": ts.project_name,
+            "file_path": ts_rel
+        })
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
         match self
             .ts_service
             .peer()
@@ -77,20 +113,20 @@ impl McpRuntime {
             .await
         {
             Ok(r) if r.is_error != Some(true) => {
-                tracing::info!(file = %path.display(), "warmup: tree-sitter get_symbols ok");
+                tracing::info!(file = %ts_rel, "warmup: tree-sitter get_symbols ok");
             }
             Ok(r) => tracing::warn!(
-                file = %path.display(),
+                file = %ts_rel,
                 error = %format_tool_result(&r),
-                "warmup: tree-sitter get_symbols failed"
+                "warmup: tree-sitter get_symbols failed (complex C++ may need mcp-cpp)"
             ),
-            Err(e) => tracing::warn!(file = %path.display(), error = %e, "warmup: tree-sitter call failed"),
+            Err(e) => tracing::warn!(file = %ts_rel, error = %e, "warmup: tree-sitter get_symbols call failed"),
         }
 
         let cpp_args = json!({
             "query": "main",
             "build_directory": build_dir,
-            "files": [path_str],
+            "files": [abs_path_str],
             "wait_timeout": 30
         })
         .as_object()
@@ -103,14 +139,14 @@ impl McpRuntime {
             .await
         {
             Ok(r) if r.is_error != Some(true) => {
-                tracing::info!(file = %path.display(), "warmup: mcp-cpp search_symbols (document) ok");
+                tracing::info!(file = %abs_path.display(), "warmup: mcp-cpp search_symbols (document) ok");
             }
             Ok(r) => tracing::warn!(
-                file = %path.display(),
+                file = %abs_path.display(),
                 error = %format_tool_result(&r),
                 "warmup: mcp-cpp search_symbols failed"
             ),
-            Err(e) => tracing::warn!(file = %path.display(), error = %e, "warmup: mcp-cpp call failed"),
+            Err(e) => tracing::warn!(file = %abs_path.display(), error = %e, "warmup: mcp-cpp call failed"),
         }
     }
 
@@ -131,6 +167,7 @@ impl McpRuntime {
 pub async fn init(
     project_root: &Path,
     compile_db_ready: bool,
+    compile_db: Option<&CompileDbContext>,
 ) -> Result<McpRuntime, McpBootstrapError> {
     check_dependency("uvx")?;
     check_dependency("mcp-cpp-server")?;
@@ -152,9 +189,13 @@ pub async fn init(
     .map_err(|e| McpBootstrapError::TreeSitter(e.to_string()))?;
 
     let registration = register_tree_sitter_project(&ts_service, &project_root).await?;
+    let ts_context =
+        TreeSitterContext::from_registration(&registration, compile_db).map_err(McpBootstrapError::TreeSitter)?;
     tracing::info!(
         project_root = %project_root,
-        registration = %registration,
+        ts_project = %ts_context.project_name,
+        ts_registry_root = %ts_context.registry_root.display(),
+        main_entries = ts_context.main_entry_paths.len(),
         "tree-sitter project ready"
     );
 
@@ -176,6 +217,7 @@ pub async fn init(
     Ok(McpRuntime {
         tool_server,
         tool_count,
+        ts_context,
         ts_service,
         cpp_service,
     })
@@ -229,7 +271,8 @@ async fn register_tree_sitter_project(
     service: &RunningService<rmcp::service::RoleClient, McpClientHandler>,
     project_root: &str,
 ) -> Result<String, McpBootstrapError> {
-    let args = json!({ "path": project_root })
+    let name = project_name_from_path(Path::new(project_root));
+    let args = json!({ "path": project_root, "name": name })
         .as_object()
         .cloned()
         .unwrap_or_default();

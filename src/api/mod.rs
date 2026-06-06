@@ -1,3 +1,4 @@
+pub mod admin;
 pub mod chat;
 pub mod health;
 
@@ -18,6 +19,7 @@ fn web_dir() -> PathBuf {
 pub fn router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/health", get(health::health))
+        .route("/api/restart", post(admin::restart))
         .route("/api/chat", post(chat::handle_chat))
         .fallback_service(
             ServeDir::new(web_dir()).append_index_html_on_directories(true),
