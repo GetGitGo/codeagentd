@@ -1,0 +1,25 @@
+# Rust
+/target/
+
+# Secrets (use .env.example as template)
+.env
+.env.*
+!.env.example
+
+# codeagentd runtime — only settings.toml.example is versioned
+.codeagentd/**
+!.codeagentd/settings.toml.example
+
+# Local test fixture (obtain separately; see README)
+/g122app/
+
+# Editor / OS
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Scratch duplicate of context-about-codeagentd.md
+/a.md
+/PLAN.md
+/*.json

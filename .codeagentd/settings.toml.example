@@ -1,0 +1,14 @@
+# Required
+[project]
+source_root = "g122app"
+compile_commands = "g122_compile_commands.json"
+
+# Optional — omit or leave empty to use defaults shown below
+# listen_addr = "0.0.0.0:3000"
+# work_dir = ".codeagentd/tmp"
+# remote_build_prefix = "/var/lib/home/beaver/G122/USB_Dongle"
+
+# [llm]
+# api_key = "sk-..."          # prefer DEEPSEEK_API_KEY env var
+# base_url = "https://api.deepseek.com"
+# model = "deepseek-v4-pro"

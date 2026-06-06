@@ -1,0 +1,29 @@
+[package]
+name = "codeagentd"
+version = "0.1.0"
+edition = "2021"
+description = "Single-project C/C++ code analysis agent with MCP + DeepSeek"
+
+[dependencies]
+rig-core = { version = "0.37", features = ["rmcp"] }
+rmcp = { version = "1.7", features = ["client", "transport-child-process"] }
+process-wrap = { version = "9", features = ["tokio1"] }
+tokio = { version = "1", features = ["full", "process"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+axum = { version = "0.7", features = ["macros"] }
+tower-http = { version = "0.5", features = ["cors", "fs"] }
+futures = "0.3"
+async-stream = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+dotenvy = "0.15"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+thiserror = "2"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+tempfile = "3"

@@ -2351,7 +2351,6 @@ async fn handle_chat(
 
 # 觉得这样设计比较合理。agent 依然是多用户使用，但是一个agent只接入一个代码项目，启动时就拉起属于自己的mcpserver，此后来自任何用户的关于本代码项目的问答请求被排队完成。怎么样？
 
-
 这个设计不仅非常合理，而且在工程实践上是非常经典的“业务单例、多租户并发排队”（Single-Project Instance with Multi-Tenant Queuing）的优秀模式 [INDEX]。
 相比于之前我们讨论的“为每个用户/会话动态拉起独立 MCP 进程”的重度隔离方案，您目前的这个新设计在服务器资源消耗、缓存利用率以及架构复杂度上实现了完美的平衡。
 以下是为您拆解的这一设计的工业级优势、技术闭环逻辑以及它的实现路径：
@@ -2396,14 +2395,23 @@ C/C++ 的语意索引（AST Call Graph）在首次生成时是最慢的。
 ------------------------------
 ## 🛠️ 3. 落地重构：核心 Rust 骨架代码
 得益于这个极简设计，你的 Axum 后端代码量可以直接缩减一半：
-
-use axum::{extract::State, response::sse::{Event, Sse}, routing::post, Json, Router};use std::{convert::Infallible, sync::Arc};use tokio::sync::Mutex; // 👈 引入 Tokio 的异步锁来实现排队机制 [INDEX]use futures_util::stream::Stream;use tokio_stream::StreamExt;use rig::providers::openai;use mcp_core::client::{transport::StdioTransport, McpClient};use serde::Deserialize;use serde_json::json;
+```rust
+use axum::{extract::State, response::sse::{Event, Sse}, routing::post, Json, Router};
+use std::{convert::Infallible, sync::Arc};
+use tokio::sync::Mutex; // 👈 引入 Tokio 的异步锁来实现排队机制 [INDEX]
+use futures_util::stream::Stream;
+use tokio_stream::StreamExt;
+use rig::providers::openai;
+use mcp_core::client::{transport::StdioTransport, McpClient};
+use serde::Deserialize;
+use serde_json::json;
 
 #[derive(Deserialize)]struct UserAskRequest {
     user_id: String, // 仅用于日志打印，区分是哪个用户在排队
     question: String,
 }
-// 全局状态只需要包裹这一个唯一的、带锁的 Agentstruct SharedAgentState {
+// 全局状态只需要包裹这一个唯一的、带锁的 Agentstruct 
+struct SharedAgentState {
     // Arc + Mutex 是 Rust 实现多线程并发排队的最标准组合 [INDEX]
     agent: Mutex<rig::agent::Agent<openai::CompletionModel>>, 
 }
@@ -2467,6 +2475,7 @@ async fn handle_chat_queue(
 您提炼出来的这个最终设计，完成了整个项目从“复杂的分布式多进程虚拟化”向“高凝聚力的本地专家单例”的完美进化。
 对于局域网内团队协作、或者个人在固定代码仓库上的 IDE 深度重构来说，这绝对是可靠性最高、响应速度最快（因为缓存常驻）、且最不容易写出 Bug 的闭环方案。
 我们现在已经把全盘的宏观设计、技术选型（Rig + async_openai + JSON-RPC + Tokio Mutex）、避坑指南全部拉通了。您对这个精简版排队后端的落地代码还有什么疑问，或者下一步您打算直接在本地建库跑起来了吗？
+
 
 
 # 安装 mcp-server-tree-sitter 和 mcp-cpp

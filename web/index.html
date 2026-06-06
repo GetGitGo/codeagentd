@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>codeagentd · Chat 测试</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --panel: #171b26;
+      --sidebar: #13161f;
+      --border: #2a3142;
+      --text: #e8ecf4;
+      --muted: #8b95a8;
+      --accent: #5b9fd4;
+      --ok: #6bcf8e;
+      --err: #f07178;
+      --user-bg: #1a2030;
+      --sidebar-w: 280px;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      font-family: "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+    }
+    .app {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .sidebar {
+      flex-shrink: 0;
+      width: var(--sidebar-w);
+      background: var(--sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+    .sidebar-head {
+      padding: 1rem 1rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--muted);
+    }
+    .sidebar-body {
+      padding: 1rem;
+      flex: 1;
+    }
+    .main {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+    }
+    .main-header {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    #sidebarToggle {
+      display: none;
+      padding: 0.35rem 0.55rem;
+      font-size: 1rem;
+      line-height: 1;
+    }
+    label {
+      display: block;
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-bottom: 0.3rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    input, textarea {
+      width: 100%;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 0.6rem 0.75rem;
+      font: inherit;
+      font-size: 0.9rem;
+    }
+    input:focus, textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .hint {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-top: 0.35rem;
+      line-height: 1.45;
+    }
+    .field { margin-bottom: 1rem; }
+    button {
+      font: inherit;
+      font-size: 0.82rem;
+      padding: 0.4rem 0.85rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    button:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    #healthInfo {
+      margin-top: 0.5rem;
+      padding: 0.6rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: "SF Mono", "Fira Code", ui-monospace, monospace;
+      font-size: 0.72rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--muted);
+      max-height: 40vh;
+      overflow-y: auto;
+    }
+    #healthInfo:empty { display: none; }
+    #healthInfo.ok { color: var(--ok); }
+    #healthInfo.err { color: var(--err); }
+    .chat {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+      padding: 1rem;
+      max-width: 820px;
+      width: 100%;
+      margin: 0 auto;
+    }
+    .turn { margin-bottom: 1.25rem; }
+    .msg-user {
+      font-size: 0.92rem;
+      background: var(--user-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.65rem 0.85rem;
+      margin-bottom: 0.65rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .msg-assistant {
+      font-size: 0.92rem;
+      line-height: 1.65;
+      word-break: break-word;
+      padding: 0 0.15rem;
+    }
+    .msg-assistant.streaming {
+      white-space: pre-wrap;
+      color: var(--muted);
+      font-family: inherit;
+    }
+    .msg-assistant.streaming::after {
+      content: "▍";
+      color: var(--accent);
+      animation: blink 1s step-end infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+    .msg-assistant > :first-child { margin-top: 0; }
+    .msg-assistant > :last-child { margin-bottom: 0; }
+    .msg-assistant p { margin: 0.65em 0; }
+    .msg-assistant h1, .msg-assistant h2, .msg-assistant h3, .msg-assistant h4 {
+      margin: 1.1em 0 0.45em;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+    .msg-assistant h1 { font-size: 1.15rem; }
+    .msg-assistant h2 { font-size: 1.05rem; }
+    .msg-assistant h3, .msg-assistant h4 { font-size: 0.98rem; }
+    .msg-assistant ul, .msg-assistant ol {
+      margin: 0.5em 0;
+      padding-left: 1.4em;
+    }
+    .msg-assistant li { margin: 0.3em 0; }
+    .msg-assistant li > p { margin: 0.2em 0; }
+    .msg-assistant code {
+      font-family: "SF Mono", "Fira Code", ui-monospace, monospace;
+      font-size: 0.86em;
+      background: var(--user-bg);
+      padding: 0.12em 0.35em;
+      border-radius: 4px;
+    }
+    .msg-assistant pre {
+      background: var(--user-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 0.85rem;
+      overflow-x: auto;
+      margin: 0.75em 0;
+      white-space: pre;
+      word-break: normal;
+      tab-size: 4;
+    }
+    .msg-assistant pre code {
+      display: block;
+      background: none;
+      padding: 0;
+      font-size: 0.8rem;
+      line-height: 1.45;
+      white-space: pre;
+      word-break: normal;
+      overflow-x: auto;
+    }
+    .msg-assistant hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 1em 0;
+    }
+    .msg-assistant blockquote {
+      margin: 0.65em 0;
+      padding-left: 0.85em;
+      border-left: 3px solid var(--border);
+      color: var(--muted);
+    }
+    .msg-assistant strong { font-weight: 600; }
+    .msg-assistant .table-wrap {
+      overflow-x: auto;
+      margin: 0.75em 0;
+      max-width: 100%;
+    }
+    .msg-assistant table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 0.88rem;
+    }
+    .msg-assistant th, .msg-assistant td {
+      border: 1px solid var(--border);
+      padding: 0.45rem 0.65rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    .msg-assistant th {
+      background: var(--user-bg);
+      font-weight: 600;
+    }
+    .msg-assistant pre code.hljs {
+      background: none;
+      padding: 0;
+    }
+    .error { color: var(--err); }
+    .composer-wrap {
+      flex-shrink: 0;
+      border-top: 1px solid var(--border);
+      background: var(--panel);
+      padding: 0.75rem 1rem 1rem;
+    }
+    .composer {
+      display: flex;
+      align-items: flex-end;
+      gap: 0.5rem;
+      max-width: 820px;
+      margin: 0 auto;
+    }
+    #question {
+      flex: 1;
+      min-width: 0;
+      resize: none;
+      min-height: 2.75rem;
+      max-height: 40vh;
+      line-height: 1.5;
+      border-radius: 10px;
+    }
+    .composer-actions {
+      flex-shrink: 0;
+      display: flex;
+      gap: 0.4rem;
+      padding-bottom: 0.15rem;
+    }
+    @media (max-width: 720px) {
+      .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        z-index: 20;
+        transform: translateX(-100%);
+        transition: transform 0.2s ease;
+        box-shadow: 4px 0 24px rgba(0,0,0,0.4);
+      }
+      .sidebar.open { transform: translateX(0); }
+      #sidebarToggle { display: inline-block; }
+      .sidebar-backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.45);
+        z-index: 15;
+      }
+      .sidebar-backdrop.show { display: block; }
+    }
+  </style>
+</head>
+<body>
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-head">Settings</div>
+      <div class="sidebar-body">
+        <div class="field">
+          <label for="remoteHost">Server IP</label>
+          <input id="remoteHost" type="text" />
+        </div>
+        <div class="field">
+          <button type="button" id="healthBtn">健康检查</button>
+          <div id="healthInfo"></div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="main-header">
+        <button type="button" id="sidebarToggle" title="Settings">☰</button>
+      </header>
+
+      <div class="chat" id="output"></div>
+
+      <div class="composer-wrap">
+        <div class="composer">
+          <textarea id="question" rows="2" placeholder="例如：encoder.cpp 主要做什么？"></textarea>
+          <div class="composer-actions">
+            <button type="button" id="stopBtn" disabled>停止</button>
+            <button type="button" id="clearBtn">清空</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
+  <script>
+    const mdRenderer = new marked.Renderer();
+    mdRenderer.code = ({ text, lang }) => {
+      const language = (lang || "").trim();
+      if (language && hljs.getLanguage(language)) {
+        const highlighted = hljs.highlight(text, { language }).value;
+        return `<pre><code class="hljs language-${escapeHtml(language)}">${highlighted}</code></pre>`;
+      }
+      const highlighted = hljs.highlightAuto(text).value;
+      return `<pre><code class="hljs">${highlighted}</code></pre>`;
+    };
+    mdRenderer.table = (header, body) =>
+      `<div class="table-wrap"><table><thead>${header}</thead><tbody>${body}</tbody></table></div>`;
+    marked.setOptions({ gfm: true, breaks: false, renderer: mdRenderer });
+
+    const $ = (id) => document.getElementById(id);
+    const questionInput = $("question");
+    const stopBtn = $("stopBtn");
+    const clearBtn = $("clearBtn");
+    const remoteHostInput = $("remoteHost");
+    const healthBtn = $("healthBtn");
+    const healthInfo = $("healthInfo");
+    const output = $("output");
+    const sidebar = $("sidebar");
+    const sidebarToggle = $("sidebarToggle");
+    const sidebarBackdrop = $("sidebarBackdrop");
+
+    const USER_ID = "web";
+    const DEFAULT_PORT = 3000;
+    const LOCAL_DEFAULT = `http://127.0.0.1:${DEFAULT_PORT}`;
+    let abortController = null;
+    let busy = false;
+
+    function toggleSidebar(open) {
+      const on = open ?? !sidebar.classList.contains("open");
+      sidebar.classList.toggle("open", on);
+      sidebarBackdrop.classList.toggle("show", on);
+    }
+
+    sidebarToggle.addEventListener("click", () => toggleSidebar());
+    sidebarBackdrop.addEventListener("click", () => toggleSidebar(false));
+
+    function localDefault() {
+      const { protocol, hostname, port } = window.location;
+      if (protocol === "http:" || protocol === "https:") {
+        const p = port ? `:${port}` : "";
+        return `${protocol}//${hostname}${p}`.replace(/\/$/, "");
+      }
+      return LOCAL_DEFAULT;
+    }
+
+    function localPlaceholder() {
+      const u = new URL(localDefault());
+      return u.port ? `${u.hostname}:${u.port}` : u.hostname;
+    }
+
+    remoteHostInput.placeholder = localPlaceholder();
+
+    function base() {
+      const remote = remoteHostInput.value.trim();
+      if (!remote) return localDefault();
+      if (/^https?:\/\//i.test(remote)) return remote.replace(/\/$/, "");
+      if (remote.includes(":")) return `http://${remote}`.replace(/\/$/, "");
+      return `http://${remote}:${DEFAULT_PORT}`;
+    }
+
+    function formatHealth(data) {
+      return [
+        `endpoint: ${base()}`,
+        `status: ${data.status}`,
+        `model: ${data.model}`,
+        `source_root: ${data.source_root}`,
+        data.compile_db_dir ? `compile_db_dir: ${data.compile_db_dir}` : null,
+        `mcp_ready: ${data.mcp_ready}`,
+        `tool_count: ${data.tool_count}`,
+      ].filter(Boolean).join("\n");
+    }
+
+    function scrollChat() {
+      output.scrollTop = output.scrollHeight;
+    }
+
+    async function checkHealth() {
+      healthBtn.disabled = true;
+      healthInfo.className = "";
+      healthInfo.textContent = "…";
+      try {
+        const res = await fetch(`${base()}/health`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        healthInfo.className = "ok";
+        healthInfo.textContent = formatHealth(data);
+      } catch (e) {
+        healthInfo.className = "err";
+        healthInfo.textContent = `连接失败 (${base()}): ${e.message || e}`;
+      } finally {
+        healthBtn.disabled = false;
+      }
+    }
+
+    function parseSseChunk(buffer) {
+      const events = [];
+      const parts = buffer.split("\n\n");
+      const rest = parts.pop() ?? "";
+      for (const part of parts) {
+        if (!part.trim()) continue;
+        let data = "";
+        for (const line of part.split("\n")) {
+          if (line.startsWith("data:")) data += line.slice(5).replace(/^\s/, "");
+        }
+        if (data) events.push(data);
+      }
+      return { events, rest };
+    }
+
+    async function streamChat(question, onChunk, signal) {
+      const res = await fetch(`${base()}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: USER_ID, question }),
+        signal,
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`HTTP ${res.status}${text ? ": " + text : ""}`);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const { events, rest } = parseSseChunk(buffer);
+        buffer = rest;
+        for (const chunk of events) onChunk(chunk);
+      }
+      if (buffer.trim()) {
+        const { events } = parseSseChunk(buffer + "\n\n");
+        for (const chunk of events) onChunk(chunk);
+      }
+    }
+
+    function escapeHtml(s) {
+      return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function isTableRow(line) {
+      const t = line.trim();
+      return t.startsWith("|") && t.includes("|", 1);
+    }
+
+    function isTableSeparator(line) {
+      return /^\|[-:\s|]+\|$/.test(line.trim());
+    }
+
+    /** Collapse blank lines inside GFM tables; ensure blank line before table block. */
+    function normalizeTables(text) {
+      const lines = text.split("\n");
+      const out = [];
+      let i = 0;
+      while (i < lines.length) {
+        if (!isTableRow(lines[i])) {
+          out.push(lines[i]);
+          i++;
+          continue;
+        }
+        if (out.length > 0 && out[out.length - 1].trim() !== "") {
+          out.push("");
+        }
+        const block = [];
+        while (i < lines.length) {
+          const line = lines[i];
+          if (isTableRow(line)) {
+            block.push(line.trim());
+            i++;
+          } else if (line.trim() === "" && i + 1 < lines.length && isTableRow(lines[i + 1])) {
+            i++;
+          } else {
+            break;
+          }
+        }
+        if (block.length > 0 && isTableSeparator(block[0]) && block.length > 1) {
+          const cols = Math.max(1, (block[0].match(/\|/g) || []).length - 1);
+          const header = "| " + Array(cols).fill("—").join(" | ") + " |";
+          block.unshift(header);
+        }
+        out.push(...block);
+        if (i < lines.length && lines[i].trim() !== "") {
+          out.push("");
+        }
+      }
+      return out.join("\n");
+    }
+
+    function normalizeOutsideFences(text) {
+      const fences = [];
+      let out = text.replace(/```[\s\S]*?```/g, (block) => {
+        fences.push(block);
+        return `\x00FENCE${fences.length - 1}\x00`;
+      });
+      out = out
+        .replace(/([^\n])(#{1,6}\s)/g, "$1\n\n$2")
+        .replace(/([^\n])(\d+\.\s+\*\*)/g, "$1\n\n$2");
+      out = normalizeTables(out);
+      return out.replace(/\x00FENCE(\d+)\x00/g, (_, i) => fences[+i]);
+    }
+
+    function prepareMarkdown(text) {
+      let src = text;
+      const tickCount = (src.match(/```/g) || []).length;
+      if (tickCount % 2 === 1) src += "\n```";
+      return normalizeOutsideFences(src);
+    }
+
+    /** 流式阶段：纯文本，避免不完整 MD 被反复解析 */
+    function showStreaming(el, text) {
+      el.className = "msg-assistant streaming";
+      el.textContent = text;
+    }
+
+    /** 完成后一次性 Markdown 渲染（marked + highlight.js + DOMPurify） */
+    function renderMarkdown(el, text) {
+      el.className = "msg-assistant";
+      const html = marked.parse(prepareMarkdown(text));
+      el.innerHTML = DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+    }
+
+    function setBusy(on) {
+      busy = on;
+      questionInput.disabled = on;
+      stopBtn.disabled = !on;
+    }
+
+    async function send() {
+      if (busy) return;
+      const question = questionInput.value.trim();
+      if (!question) return;
+
+
+      const turn = document.createElement("div");
+      turn.className = "turn";
+      const userEl = document.createElement("div");
+      userEl.className = "msg-user";
+      userEl.textContent = question;
+      const replyEl = document.createElement("div");
+      replyEl.className = "msg-assistant";
+      turn.appendChild(userEl);
+      turn.appendChild(replyEl);
+      output.appendChild(turn);
+
+      questionInput.value = "";
+      questionInput.style.height = "auto";
+      scrollChat();
+
+      setBusy(true);
+      abortController = new AbortController();
+      let text = "";
+
+      try {
+        await streamChat(
+          question,
+          (chunk) => {
+            text += chunk;
+            showStreaming(replyEl, text);
+            scrollChat();
+          },
+          abortController.signal
+        );
+        renderMarkdown(replyEl, text);
+        scrollChat();
+      } catch (e) {
+        if (e.name === "AbortError") {
+          const stopped = text + (text ? "\n\n" : "") + "*[已停止]*";
+          renderMarkdown(replyEl, stopped);
+        } else {
+          replyEl.innerHTML = `<span class="error">错误: ${escapeHtml(String(e.message || e))}</span>`;
+        }
+      } finally {
+        setBusy(false);
+        abortController = null;
+        questionInput.focus();
+      }
+    }
+
+    healthBtn.addEventListener("click", checkHealth);
+    stopBtn.addEventListener("click", () => abortController?.abort());
+    clearBtn.addEventListener("click", () => {
+      output.innerHTML = '';
+    });
+    questionInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        send();
+      }
+    });
+    questionInput.addEventListener("input", () => {
+      questionInput.style.height = "auto";
+      questionInput.style.height = `${questionInput.scrollHeight}px`;
+    });
+
+    questionInput.focus();
+  </script>
+</body>
+</html>
