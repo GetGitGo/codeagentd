@@ -1,9 +1,5 @@
 # 利用现有的强大的代码分析的mcp server
 
-
-
-你的这个想法**非常具有远见，而且完全切中了当前 AI 编程智能体（Coding Agent）开发的最前沿趋势**。
-
 答案是：**完全正确，利用现有的 MCP（Model Context Protocol，模型上下文协议）服务，不仅能帮你省去绝大部分的底层工具开发工作，还能显著提升 Agent 的工业级稳定性 [INDEX]。**
 
 自 Anthropic 推出 MCP 协议以来，开源社区已经涌现出了大量开箱即用的代码分析 MCP 服务 [INDEX]。如果采用这个路线，你的 **Rust 后端分工将发生优雅的蜕变**：从“自己去写 Tree-sitter 和文件遍历”，变成**“专注于编写 MCP 客户端（Client）来调度成熟的生态工具，并为 DeepSeek-V4-Pro 做好 Prompt 编排” [INDEX]。**

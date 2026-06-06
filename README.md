@@ -6,7 +6,6 @@
 
 | 文件 | 说明 |
 |------|------|
-| [PLAN.md](./PLAN.md) | **项目方案与分阶段实施计划**（主文档） |
 | [context-about-codeagentd.md](./context-about-codeagentd.md) | 设计讨论背景资料（2026-06） |
 
 ## 快速依赖
@@ -60,16 +59,18 @@ cargo run -- run
 | `logs/codeagentd.log` | 标准输出/错误日志 |
 | `tmp/` | 默认 compile_commands 临时副本（可在 settings 中改 `work_dir`） |
 
-### G122 示例
+### 配置示例
+
+本地源码与 build 服务器路径不一致时，用 `remote_build_prefix` 在 `work_dir` 副本中重写 `compile_commands.json` 里的路径前缀：
 
 ```toml
 [project]
-source_root = "g122app"
-compile_commands = "g122_compile_commands.json"
-remote_build_prefix = "/var/lib/home/beaver/G122/USB_Dongle"
+source_root = "my-project"
+compile_commands = "compile_commands.json"
+remote_build_prefix = "/build/ci/my-project"
 ```
 
-`g122app` 对应远程 `/var/lib/home/beaver/G122/USB_Dongle`；`g122_compile_commands.json` 来自 build 服务器。
+含义：`compile_commands.json` 中若写的是 `/build/ci/my-project/...`，运行时会映射到本机 `source_root`（即 `my-project/...`）。`compile_commands.json` 通常由 build 服务器或本地 `bear -- make` / `compiledb` 生成。
 
 ## 运行
 

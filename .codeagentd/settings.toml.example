@@ -11,4 +11,4 @@ compile_commands = "compile_commands.json"
 # [llm]
 # api_key = "sk-..."          # prefer DEEPSEEK_API_KEY env var
 # base_url = "https://api.deepseek.com"
-# model = "deepseek-reasoner"
+# model = "deepseek-v4-flash"
